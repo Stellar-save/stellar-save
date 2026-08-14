@@ -1,0 +1,418 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: 'Inter', 'Arial', sans-serif;
+  --font-display: 'Fraunces', 'Georgia', serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-navy: #102b4e;
+  --color-gold: #f5c86a;
+  --color-teal: #5eb697;
+}
+
+/* -------------------------------------------------------------------------
+   CSS custom properties
+   ---------------------------------------------------------------------- */
+:root {
+  --background: #fbfaf7;
+  --foreground: #102b4e;
+  --border: #e5ded2;
+  /* Focus ring colour — used everywhere for consistent keyboard nav */
+  --ring: #b07a18;
+  --ring-alpha: rgba(176, 122, 24, 0.55);
+  --radius: 1rem;
+}
+
+/* -------------------------------------------------------------------------
+   Base resets
+   ---------------------------------------------------------------------- */
+* { box-sizing: border-box; }
+html { background: #f3efe6; }
+body { margin: 0; background: var(--background); color: var(--foreground); font-family: 'Inter', Arial, sans-serif; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+.font-display { font-family: 'Fraunces', Georgia, serif; }
+
+/* -------------------------------------------------------------------------
+   Global focus-visible ring
+   Applied via outline so it works on any element without extra markup.
+   The :focus-visible selector ensures rings only show for keyboard nav.
+   ---------------------------------------------------------------------- */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Tighter radius for round elements */
+button.rounded-full:focus-visible,
+a.rounded-full:focus-visible {
+  border-radius: 9999px;
+}
+
+/* -------------------------------------------------------------------------
+   Navigation
+   ---------------------------------------------------------------------- */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  border-radius: 13px;
+  padding: .75rem .8rem;
+  color: #77837d;
+  font-size: .875rem;
+  font-weight: 600;
+  text-align: left;
+  transition: background .15s ease, color .15s ease;
+  border: 2px solid transparent; /* reserve space so active ring doesn't shift layout */
+}
+.nav-item:hover { background: #eee9df; color: #102b4e; }
+.nav-item:focus-visible { outline: none; border-color: var(--ring); box-shadow: 0 0 0 2px var(--ring-alpha); }
+.nav-item-active { background: #102b4e; color: #fffefa; box-shadow: 0 8px 16px rgba(16,43,78,.12); }
+.nav-item-active:focus-visible { border-color: #f5c86a; box-shadow: 0 0 0 2px rgba(245,200,106,0.4); }
+
+.circle-button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #e5ded2;
+  border-radius: 50%;
+  color: #77837d;
+}
+.circle-button:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring-alpha); }
+
+/* -------------------------------------------------------------------------
+   Balance card
+   ---------------------------------------------------------------------- */
+.balance-card {
+  border-radius: 24px;
+  background: #102b4e;
+  color: #fffefa;
+  padding: 22px;
+  box-shadow: 0 16px 30px rgba(16,43,78,.13);
+}
+
+/* -------------------------------------------------------------------------
+   Quick actions
+   ---------------------------------------------------------------------- */
+.quick-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .55rem;
+  border: 1px solid #e6ded1;
+  border-radius: 15px;
+  background: #fffefa;
+  padding: .78rem .5rem;
+  color: #102b4e;
+  font-size: .83rem;
+  font-weight: 700;
+  transition: border-color .15s, background .15s, transform .15s;
+}
+.quick-action:hover { border-color: #cdbb99; background: #f8f5ef; transform: translateY(-1px); }
+.quick-action:focus-visible { outline: none; border-color: var(--ring); box-shadow: 0 0 0 3px var(--ring-alpha); }
+.quick-action span {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 9px;
+  background: #f7e5b9;
+  color: #9e6a12;
+}
+@media (min-width: 768px) { .quick-action { padding: .85rem; } }
+
+/* -------------------------------------------------------------------------
+   Amount chips
+   ---------------------------------------------------------------------- */
+.amount-chip {
+  border: 1px solid #dacdbb;
+  border-radius: 999px;
+  background: #fffefa;
+  padding: .52rem .78rem;
+  color: #102b4e;
+  font-size: .78rem;
+  font-weight: 700;
+  transition: border-color .15s, background .15s;
+}
+.amount-chip:hover { border-color: #b07a18; background: #fff6df; }
+.amount-chip:focus-visible { outline: none; border-color: var(--ring); box-shadow: 0 0 0 3px var(--ring-alpha); }
+
+/* -------------------------------------------------------------------------
+   Goal cards
+   ---------------------------------------------------------------------- */
+.goal-card {
+  border: 1px solid #e6ded1;
+  border-radius: 20px;
+  background: #fffefa;
+  padding: 16px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.goal-card:focus-within { border-color: #cdc4b5; box-shadow: 0 4px 12px rgba(16,43,78,.06); }
+
+.goal-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+}
+
+/* Legacy named colour variants (kept for backwards-compat) */
+.goal-navy { background: #e4ebf2; color: #102b4e; }
+.goal-gold  { background: #fff1c9; color: #b07a18; }
+.goal-teal  { background: #dff3e9; color: #28634e; }
+.bg-navy { background: #102b4e; }
+.bg-gold  { background: #f5c86a; }
+.bg-teal  { background: #5eb697; }
+
+/* Goal card action buttons (Edit / Delete) */
+.goal-action-btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid #e6ded1;
+  background: #fffefa;
+  color: #77837d;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.goal-action-btn:hover { background: #f3efe6; color: #102b4e; border-color: #cdc4b5; }
+.goal-action-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--ring-alpha); }
+.goal-action-btn-danger:hover { background: #f8dfda; color: #c15d54; border-color: #e8b0ab; }
+.goal-action-btn-danger:focus-visible { box-shadow: 0 0 0 3px rgba(193,93,84,.30); }
+
+/* -------------------------------------------------------------------------
+   Activity icons
+   ---------------------------------------------------------------------- */
+.activity-icon {
+  display: grid;
+  place-items: center;
+  width: 35px;
+  height: 35px;
+  border-radius: 11px;
+  flex-shrink: 0;
+}
+.activity-in  { background: #dff3e9; color: #28634e; }
+.activity-out { background: #f7e1dc; color: #c15d54; }
+
+/* -------------------------------------------------------------------------
+   Person / bank rows (send + cashout flows)
+   ---------------------------------------------------------------------- */
+.person-row,
+.bank-row {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  width: 100%;
+  border: 1px solid #e6ded1;
+  border-radius: 20px;
+  background: #fffefa;
+  padding: 15px;
+  text-align: left;
+  transition: border-color .15s, transform .15s;
+}
+.person-row:hover, .bank-row:hover  { border-color: #b9aa91; transform: translateX(2px); }
+.person-row:focus-visible, .bank-row:focus-visible {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px var(--ring-alpha);
+}
+
+.person-avatar {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  font-size: .75rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.blush { background: #f0d9d2; color: #a85850; }
+.sky   { background: #dce9f3; color: #3b6381; }
+.mint  { background: #dff3e9; color: #28634e; }
+
+/* -------------------------------------------------------------------------
+   Primary button
+   ---------------------------------------------------------------------- */
+.primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .55rem;
+  border: 0;
+  border-radius: 13px;
+  background: #102b4e;
+  padding: .85rem 1.1rem;
+  color: #fffefa;
+  font-size: .875rem;
+  font-weight: 700;
+  transition: background .15s, transform .15s;
+}
+.primary-button:hover  { background: #1e4169; transform: translateY(-1px); }
+.primary-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(176,122,24,.6);
+}
+.primary-button:disabled { cursor: not-allowed; opacity: 0.5; transform: none; }
+
+/* -------------------------------------------------------------------------
+   Status cards (processing / done states)
+   ---------------------------------------------------------------------- */
+.status-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: 1px solid #e6ded1;
+  border-radius: 24px;
+  background: #fffefa;
+  padding: 48px 24px;
+  text-align: center;
+}
+.processing-ring {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border: 3px solid #f5c86a;
+  border-top-color: #102b4e;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  color: #102b4e;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* -------------------------------------------------------------------------
+   Auth pages
+   ---------------------------------------------------------------------- */
+.auth-shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  background: #f3efe6;
+  padding: 1rem;
+}
+.auth-card {
+  display: flex;
+  width: min(100%, 440px);
+  flex-direction: column;
+  gap: 1.5rem;
+  border: 1px solid #d9d1c3;
+  border-radius: 28px;
+  background: #fbfaf7;
+  padding: 2rem;
+  box-shadow: 0 24px 80px rgba(16,43,78,.12);
+}
+.eyebrow {
+  margin-bottom: .75rem;
+  color: #b07a18;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+.auth-label {
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+  color: #5c706b;
+  font-size: .78rem;
+  font-weight: 700;
+}
+.auth-input {
+  border: 1.5px solid #d9d1c3;
+  border-radius: 12px;
+  background: #fffefa;
+  padding: .8rem .9rem;
+  color: #102b4e;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.auth-input:focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px var(--ring-alpha);
+}
+/* aria-invalid state */
+.auth-input[aria-invalid="true"] {
+  border-color: #c15d54;
+  box-shadow: 0 0 0 3px rgba(193,93,84,.25);
+}
+
+/* -------------------------------------------------------------------------
+   Animate pulse (Tailwind's built-in, kept for custom use)
+   ---------------------------------------------------------------------- */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .4; }
+}
+.animate-pulse { animation: pulse 1.6s cubic-bezier(.4,0,.6,1) infinite; }
+
+/* -------------------------------------------------------------------------
+   High-contrast media query
+   Strengthens borders, darkens muted text, and ensures all interactive
+   elements have a visible boundary for users with contrast preferences.
+   ---------------------------------------------------------------------- */
+@media (prefers-contrast: more) {
+  :root {
+    --ring: #7a5000;
+    --ring-alpha: rgba(122, 80, 0, 0.7);
+  }
+
+  .goal-card,
+  .quick-action,
+  .person-row,
+  .bank-row,
+  .auth-card,
+  .status-card {
+    border-color: #102b4e;
+    border-width: 2px;
+  }
+
+  .nav-item { border-width: 2px; }
+  .nav-item-active { border-color: transparent; outline: 2px solid #102b4e; }
+
+  /* Strengthen muted text to meet 4.5:1 against #fbfaf7 */
+  .text-\[\#728079\],
+  .text-\[\#7b8881\],
+  .text-\[\#8a958e\],
+  .text-\[\#77837d\],
+  .text-\[\#87928c\] {
+    color: #3d4f48;
+  }
+
+  /* Ensure progress bar text is readable */
+  .goal-action-btn { border-width: 2px; border-color: #102b4e; }
+
+  /* Auth inputs */
+  .auth-input { border-width: 2px; border-color: #102b4e; }
+  .auth-input:focus { border-color: var(--ring); }
+
+  /* Amount chips */
+  .amount-chip { border-width: 2px; border-color: #102b4e; }
+
+  /* Primary button — ensure enough contrast for border */
+  .primary-button { outline: 2px solid #102b4e; outline-offset: 2px; }
+}
+
+/* -------------------------------------------------------------------------
+   Reduced motion
+   ---------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

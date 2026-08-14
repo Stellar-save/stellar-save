@@ -1,0 +1,8 @@
+onlyBuiltDependencies:
+  - msw
+  - "@img/sharp-win32-x64"
+  - esbuild
+  - "@next/swc-win32-x64-msvc"
+
+overrides:
+  hono: "4.12.25"

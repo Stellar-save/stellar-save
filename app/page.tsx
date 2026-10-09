@@ -9,6 +9,7 @@ import {
   ChevronRight,
   CircleDollarSign,
   Edit2,
+  ExternalLink,
   Landmark,
   Loader2,
   LogOut,
@@ -16,6 +17,7 @@ import {
   Plus,
   Send,
   Sparkles,
+  Star,
   Target,
   Trash2,
   Wallet,
@@ -25,6 +27,7 @@ import { authClient } from '@/lib/auth-client'
 import { accessibleTextColor } from '@/lib/contrast'
 import { getWalletData, recordTransaction } from '@/app/actions/wallet'
 import { createCheckoutSession, getConnectStatus, initiatePayout, startConnectOnboarding } from '@/app/actions/stripe'
+import { provisionStellarAccount, refreshXlmBalance, sendXlm } from '@/app/actions/stellar'
 import { AllocateModal, DeleteGoalConfirm, GoalFormModal } from '@/components/goal-modals'
 import type { GoalRow } from '@/components/goal-modals'
 
@@ -36,9 +39,10 @@ type WalletData = Awaited<ReturnType<typeof getWalletData>>
 type TxRow = WalletData['activity'][number]
 
 type Tab = 'home' | 'goals' | 'activity'
-type Flow = 'send' | 'cashout' | null
+type Flow = 'send' | 'cashout' | 'xlm' | null
 type SendStep = 'person' | 'amount' | 'done'
 type CashoutStep = 'setup' | 'checking' | 'amount' | 'processing' | 'done' | 'needs-onboarding'
+type XlmStep = 'panel' | 'send-dest' | 'send-amount' | 'sending' | 'done'
 
 interface Person {
   name: string
@@ -82,6 +86,7 @@ function txIcon(type: string) {
   if (type === 'cashout') return ArrowDownLeft
   if (type === 'goal_allocate') return Target
   if (type === 'goal_withdraw') return Target
+  if (type === 'xlm_send') return Star
   return Wallet
 }
 
@@ -172,6 +177,12 @@ export default function Page() {
   const [showDepositPicker, setShowDepositPicker] = useState(false)
   const [depositDollars, setDepositDollars] = useState('')
 
+  // Stellar / XLM state
+  const [xlmStep, setXlmStep] = useState<XlmStep>('panel')
+  const [xlmDest, setXlmDest] = useState('')
+  const [xlmAmount, setXlmAmount] = useState('')
+  const [xlmTxHash, setXlmTxHash] = useState('')
+
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ---- data fetching ----
@@ -208,6 +219,7 @@ export default function Page() {
   const goals = data?.goals ?? []
   const activity = data?.activity ?? []
   const totalSavedCents = useMemo(() => goals.reduce((s, g) => s + g.savedCents, 0), [goals])
+  const stellar = data?.stellar ?? { publicKey: null, xlmBalanceStroops: 0n, xlmFormatted: '0' }
 
   // ---- logout ----
 
@@ -223,9 +235,14 @@ export default function Page() {
     setSendStep('person')
     setCashoutStep('setup')
     setAmount('')
+    setXlmStep('panel')
+    setXlmDest('')
+    setXlmAmount('')
+    setXlmTxHash('')
   }
 
   function openSend() { setFlow('send'); setSendStep('person') }
+  function openXlm() { setFlow('xlm'); setXlmStep('panel') }
   function openCashout() {
     setFlow('cashout')
     setCashoutStep('checking')
@@ -287,6 +304,45 @@ export default function Page() {
     })
   }
 
+  // ---- XLM flow ----
+
+  async function handleProvisionStellar() {
+    startTransition(async () => {
+      try {
+        await provisionStellarAccount()
+        await loadData()
+        showToast('Stellar account created and funded!')
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : 'Could not provision Stellar account', 'err')
+      }
+    })
+  }
+
+  async function handleRefreshXlm() {
+    startTransition(async () => {
+      try {
+        await refreshXlmBalance()
+        await loadData()
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : 'Could not refresh balance', 'err')
+      }
+    })
+  }
+
+  async function submitXlmSend() {
+    if (!xlmDest || !xlmAmount) return
+    setXlmStep('sending')
+    try {
+      const { txHash } = await sendXlm({ destinationPublicKey: xlmDest, amountXlm: xlmAmount })
+      setXlmTxHash(txHash)
+      await loadData()
+      setXlmStep('done')
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'XLM transfer failed', 'err')
+      setXlmStep('send-amount')
+    }
+  }
+
   // ---- goal modal callbacks ----
 
   function onGoalSaved() { loadData() }
@@ -330,6 +386,7 @@ export default function Page() {
             <NavItem icon={Wallet} label="Overview" active={tab === 'home'} onClick={() => { setTab('home'); resetFlow() }} />
             <NavItem icon={Target} label="Savings goals" active={tab === 'goals'} onClick={() => { setTab('goals'); resetFlow() }} />
             <NavItem icon={Send} label="Send money" active={false} onClick={openSend} />
+            <NavItem icon={Star} label="Stellar (XLM)" active={flow === 'xlm'} onClick={openXlm} />
             <NavItem icon={ArrowDownLeft} label="Cash out" active={false} onClick={openCashout} />
             <NavItem icon={MoreHorizontal} label="Activity" active={tab === 'activity'} onClick={() => { setTab('activity'); resetFlow() }} />
           </nav>
@@ -441,6 +498,24 @@ export default function Page() {
               )}
 
               {flow ? (
+                flow === 'xlm' ? (
+                  <XlmFlowView
+                    stellar={stellar}
+                    xlmStep={xlmStep}
+                    xlmDest={xlmDest}
+                    xlmAmount={xlmAmount}
+                    xlmTxHash={xlmTxHash}
+                    isPending={isPending}
+                    setXlmDest={setXlmDest}
+                    setXlmAmount={setXlmAmount}
+                    onBack={resetFlow}
+                    onProvision={handleProvisionStellar}
+                    onRefresh={handleRefreshXlm}
+                    onGoToSend={() => setXlmStep('send-dest')}
+                    onGoToAmount={() => setXlmStep('send-amount')}
+                    onSubmitSend={submitXlmSend}
+                  />
+                ) : (
                 <FlowView
                   flow={flow}
                   sendStep={sendStep}
@@ -456,6 +531,7 @@ export default function Page() {
                   onStartCashout={submitCashout}
                   onStartOnboarding={() => { startTransition(async () => { await startConnectOnboarding() }) }}
                 />
+                )
               ) : (
                 <>
                   {/* Mobile greeting */}
@@ -489,14 +565,26 @@ export default function Page() {
                           <Target size={14} /> {fmt(totalSavedCents)}
                         </p>
                       </div>
-                      <p className="text-xs text-[#b4c4c6]">{goals.length} active goal{goals.length !== 1 ? 's' : ''}</p>
+                      <div className="text-right">
+                        <p className="text-xs text-[#b4c4c6]">{goals.length} active goal{goals.length !== 1 ? 's' : ''}</p>
+                        {stellar.publicKey && (
+                          <button
+                            onClick={openXlm}
+                            className="mt-1 flex items-center gap-1 text-xs font-semibold text-[#f5c86a] hover:underline"
+                          >
+                            <Star size={11} />
+                            {stellar.xlmFormatted} XLM
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   {/* Quick actions */}
-                  <div className="mt-5 grid grid-cols-3 gap-2.5 sm:gap-3">
+                  <div className="mt-5 grid grid-cols-4 gap-2.5 sm:gap-3">
                     <QuickAction icon={Plus} label="Add money" onClick={() => setShowDepositPicker((o) => !o)} />
                     <QuickAction icon={Send} label="Send" onClick={openSend} />
+                    <QuickAction icon={Star} label="Stellar" onClick={openXlm} />
                     <QuickAction icon={ArrowDownLeft} label="Cash out" onClick={openCashout} />
                   </div>
 
@@ -796,6 +884,7 @@ function GoalCard({
 function TxRow({ tx }: { tx: TxRow }) {
   const Icon = txIcon(tx.type)
   const credit = txIsCredit(tx.type)
+  const isXlm = tx.type === 'xlm_send'
   return (
     <div className="flex items-center gap-3 py-4">
       <div className={`activity-icon ${credit ? 'activity-in' : 'activity-out'}`}>
@@ -804,6 +893,16 @@ function TxRow({ tx }: { tx: TxRow }) {
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold">{tx.description}</p>
         <p className="mt-1 text-xs text-[#8a958e]">{fmtDate(tx.createdAt)}</p>
+        {tx.stellarTxHash && (
+          <a
+            href={`https://stellar.expert/explorer/testnet/tx/${tx.stellarTxHash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-[#b07a18] hover:underline"
+          >
+            View on Stellar Expert <ExternalLink size={9} />
+          </a>
+        )}
         {tx.status === 'failed' && (
           <span className="mt-0.5 inline-block rounded bg-[#f8dfda] px-1.5 py-0.5 text-[10px] font-bold text-[#8c3c37]">
             Failed
@@ -816,7 +915,7 @@ function TxRow({ tx }: { tx: TxRow }) {
         )}
       </div>
       <p className={`shrink-0 text-sm font-bold ${credit ? 'text-[#28634e]' : 'text-[#c15d54]'}`}>
-        {credit ? '+' : '−'}{fmt(tx.amountCents)}
+        {isXlm ? <span className="flex items-center gap-0.5"><Star size={11} /> XLM</span> : (credit ? '+' : '−') + fmt(tx.amountCents)}
       </p>
     </div>
   )
@@ -1198,6 +1297,309 @@ function AmountStep({
           <>{action} <ArrowUpRight size={17} /></>
         )}
       </button>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Stellar / XLM flow view
+// ---------------------------------------------------------------------------
+
+function XlmFlowView({
+  stellar,
+  xlmStep,
+  xlmDest,
+  xlmAmount,
+  xlmTxHash,
+  isPending,
+  setXlmDest,
+  setXlmAmount,
+  onBack,
+  onProvision,
+  onRefresh,
+  onGoToSend,
+  onSubmitSend,
+}: {
+  stellar: { publicKey: string | null; xlmBalanceStroops: bigint; xlmFormatted: string }
+  xlmStep: XlmStep
+  xlmDest: string
+  xlmAmount: string
+  xlmTxHash: string
+  isPending: boolean
+  setXlmDest: (v: string) => void
+  setXlmAmount: (v: string) => void
+  onBack: () => void
+  onProvision: () => void
+  onRefresh: () => void
+  onGoToSend: () => void
+  onGoToAmount: () => void
+  onSubmitSend: () => void
+}) {
+  const network = typeof window !== 'undefined'
+    ? (process.env.NEXT_PUBLIC_STELLAR_NETWORK ?? 'testnet')
+    : 'testnet'
+
+  const explorerBase = network === 'mainnet'
+    ? 'https://stellar.expert/explorer/public'
+    : 'https://stellar.expert/explorer/testnet'
+
+  const destInvalid = xlmDest.length > 0 && !/^G[A-Z0-9]{55}$/.test(xlmDest)
+  const amountNum = parseFloat(xlmAmount)
+  const amountInvalid = xlmAmount.length > 0 && (isNaN(amountNum) || amountNum <= 0)
+
+  return (
+    <div className="mx-auto max-w-[560px]">
+      <button
+        onClick={onBack}
+        className="mb-8 flex items-center gap-2 text-sm font-semibold text-[#728079] transition hover:text-[#102b4e] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b07a18]/60 rounded-lg"
+      >
+        <ArrowLeft size={17} /> Back to overview
+      </button>
+
+      <div className="mb-7">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#b07a18]">Stellar network</p>
+        <h2 className="mt-2 font-display text-4xl font-bold tracking-[-0.06em]">
+          {xlmStep === 'done' ? 'Payment sent.' : xlmStep === 'sending' ? 'Sending…' : 'Your XLM wallet.'}
+        </h2>
+        <p className="mt-3 text-[#78857f]">
+          {xlmStep === 'done'
+            ? 'Your XLM transaction was submitted to the Stellar network.'
+            : xlmStep === 'sending'
+            ? 'Submitting transaction to Horizon…'
+            : xlmStep === 'send-dest'
+            ? 'Enter the recipient\'s Stellar public key.'
+            : xlmStep === 'send-amount'
+            ? 'How much XLM do you want to send?'
+            : stellar.publicKey
+            ? `On-chain balance: ${stellar.xlmFormatted} XLM · ${network}`
+            : 'Create your Stellar account to send and receive XLM.'}
+        </p>
+      </div>
+
+      {/* ---- panel: no account yet ---- */}
+      {xlmStep === 'panel' && !stellar.publicKey && (
+        <div className="rounded-[24px] border border-[#e6ded1] bg-[#fffefa] p-6">
+          <div className="mb-5 flex items-center gap-3">
+            <div className="grid size-12 place-items-center rounded-2xl bg-[#fff8e6] text-[#b07a18]">
+              <Star size={22} />
+            </div>
+            <div>
+              <p className="font-semibold">No Stellar account yet</p>
+              <p className="text-sm text-[#8a958e]">
+                {network === 'testnet' ? 'Funded automatically via Friendbot (testnet)' : 'Requires platform funding'}
+              </p>
+            </div>
+          </div>
+          <p className="mb-5 text-sm text-[#5c706b]">
+            stellar-save generates a Stellar keypair for you, funds it on the{' '}
+            <strong>{network}</strong>, and encrypts the secret key server-side.
+            Your public key is permanently recorded on the Stellar ledger.
+          </p>
+          <button
+            onClick={onProvision}
+            disabled={isPending}
+            className="primary-button w-full disabled:opacity-50"
+          >
+            {isPending
+              ? <><Loader2 size={16} className="animate-spin" /> Creating account…</>
+              : 'Create Stellar account'}
+          </button>
+        </div>
+      )}
+
+      {/* ---- panel: account exists ---- */}
+      {xlmStep === 'panel' && stellar.publicKey && (
+        <div className="flex flex-col gap-4">
+          {/* Balance card */}
+          <div className="rounded-[24px] bg-[#102b4e] p-6 text-white">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm text-[#b4c4c6]">XLM balance</p>
+                <p className="mt-1 font-display text-4xl font-bold tracking-[-0.05em]">
+                  {stellar.xlmFormatted}
+                  <span className="ml-2 text-xl font-semibold text-[#f5c86a]">XLM</span>
+                </p>
+              </div>
+              <div className="grid size-11 place-items-center rounded-2xl bg-[#254568] text-[#f5c86a]">
+                <Star size={21} />
+              </div>
+            </div>
+            <div className="mt-6 flex items-center justify-between">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-[#b4c4c6]">Public key</p>
+                <p className="mt-1 truncate font-mono text-xs text-[#e8e1d7]">
+                  {stellar.publicKey}
+                </p>
+              </div>
+              <a
+                href={`${explorerBase}/account/${stellar.publicKey}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="View on Stellar Expert"
+                className="ml-3 shrink-0 grid size-8 place-items-center rounded-full bg-[#254568] text-[#f5c86a] hover:bg-[#1e3a5e] transition"
+              >
+                <ExternalLink size={14} />
+              </a>
+            </div>
+            <span className="mt-3 inline-block rounded-full bg-[#1e3a5e] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#f5c86a]">
+              {network}
+            </span>
+          </div>
+
+          {/* Actions */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={onGoToSend}
+              className="primary-button justify-center"
+            >
+              <ArrowUpRight size={16} /> Send XLM
+            </button>
+            <button
+              onClick={onRefresh}
+              disabled={isPending}
+              className="flex items-center justify-center gap-2 rounded-2xl border border-[#e6ded1] bg-[#fffefa] py-3 text-sm font-semibold text-[#102b4e] transition hover:border-[#b07a18] hover:text-[#b07a18] disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b07a18]/60"
+            >
+              {isPending ? <Loader2 size={14} className="animate-spin" /> : <Star size={14} />}
+              Refresh
+            </button>
+          </div>
+
+          <p className="text-center text-xs text-[#8a958e]">
+            Transactions are recorded on-chain and verifiable on{' '}
+            <a
+              href={`${explorerBase}/account/${stellar.publicKey}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-[#b07a18] hover:underline"
+            >
+              Stellar Expert
+            </a>.
+          </p>
+        </div>
+      )}
+
+      {/* ---- send: destination ---- */}
+      {xlmStep === 'send-dest' && (
+        <div className="rounded-[24px] border border-[#e6ded1] bg-[#fffefa] p-6">
+          <label
+            htmlFor="xlm-dest"
+            className="block text-xs font-bold uppercase tracking-[0.16em] text-[#8a958e]"
+          >
+            Recipient public key
+          </label>
+          <input
+            id="xlm-dest"
+            value={xlmDest}
+            onChange={(e) => setXlmDest(e.target.value.trim())}
+            placeholder="G…"
+            aria-invalid={destInvalid}
+            aria-describedby={destInvalid ? 'xlm-dest-error' : undefined}
+            className={`auth-input mt-2 w-full font-mono text-sm ${destInvalid ? 'border-[#c15d54]' : ''}`}
+          />
+          {destInvalid && (
+            <p id="xlm-dest-error" role="alert" className="mt-1.5 text-xs font-semibold text-[#c15d54]">
+              Must be a valid Stellar public key starting with G (56 characters)
+            </p>
+          )}
+          <button
+            onClick={() => {
+              if (!destInvalid && xlmDest.length === 56) {
+                setXlmAmount('')
+                onGoToAmount()
+              }
+            }}
+            disabled={destInvalid || xlmDest.length !== 56}
+            className="primary-button mt-5 w-full disabled:opacity-40"
+          >
+            Continue <ArrowUpRight size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* ---- send: amount ---- */}
+      {xlmStep === 'send-amount' && (
+        <div className="rounded-[24px] border border-[#e6ded1] bg-[#fffefa] p-5 sm:p-7">
+          <div className="flex items-center gap-3 border-b border-[#eee8de] pb-5">
+            <span className="grid size-11 place-items-center rounded-full bg-[#fff8e6] text-[#b07a18] font-bold">
+              <Star size={18} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">Send XLM</p>
+              <p className="truncate font-mono text-xs text-[#8a958e]">{xlmDest}</p>
+            </div>
+          </div>
+
+          <label className="mt-8 block text-xs font-bold uppercase tracking-[0.16em] text-[#8a958e]" htmlFor="xlm-amount">
+            Amount (XLM)
+          </label>
+          <div className={`mt-2 flex items-center border-b-2 pb-3 ${amountInvalid ? 'border-[#c15d54]' : 'border-[#102b4e]'}`}>
+            <Star size={20} className="shrink-0 text-[#b07a18]" />
+            <input
+              id="xlm-amount"
+              inputMode="decimal"
+              value={xlmAmount}
+              onChange={(e) => setXlmAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+              placeholder="0.0000000"
+              aria-invalid={amountInvalid}
+              className="min-w-0 flex-1 bg-transparent px-2 font-display text-4xl font-bold outline-none placeholder:text-[#c6c2ba]"
+            />
+          </div>
+          <p className="mt-2 text-xs text-[#8a958e]">
+            Available: <strong>{stellar.xlmFormatted} XLM</strong>
+          </p>
+
+          <div className="mt-5 flex gap-2">
+            {['1', '10', '100'].map((v) => (
+              <button key={v} onClick={() => setXlmAmount(v)} className="amount-chip">
+                {v} XLM
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={onSubmitSend}
+            disabled={!xlmAmount || amountInvalid || isPending}
+            className="primary-button mt-8 w-full disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {isPending
+              ? <><Loader2 size={16} className="animate-spin" /> Sending…</>
+              : <>Send {xlmAmount || '0'} XLM <ArrowUpRight size={17} /></>}
+          </button>
+        </div>
+      )}
+
+      {/* ---- sending spinner ---- */}
+      {xlmStep === 'sending' && (
+        <div className="status-card">
+          <div className="processing-ring"><Star size={25} /></div>
+          <p className="mt-5 font-semibold">Submitting to Stellar network</p>
+          <p className="mt-2 text-sm text-[#78857f]">Broadcasting your transaction via Horizon…</p>
+        </div>
+      )}
+
+      {/* ---- done ---- */}
+      {xlmStep === 'done' && (
+        <div className="status-card">
+          <div className="grid size-16 place-items-center rounded-full bg-[#dff3e9] text-[#28634e]">
+            <Check size={29} />
+          </div>
+          <p className="mt-5 font-display text-2xl font-bold">Transaction confirmed</p>
+          <p className="mt-2 text-sm text-[#78857f]">
+            Your XLM payment was submitted to the Stellar {network}.
+          </p>
+          {xlmTxHash && (
+            <a
+              href={`${explorerBase}/tx/${xlmTxHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#b07a18] hover:underline"
+            >
+              View transaction on Stellar Expert <ExternalLink size={13} />
+            </a>
+          )}
+          <button onClick={onBack} className="primary-button mt-7">Done</button>
+        </div>
+      )}
     </div>
   )
 }

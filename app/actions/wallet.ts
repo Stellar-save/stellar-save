@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { savingsGoal, transactions, wallet } from '@/lib/db/schema'
+import { getXlmBalanceStroops, stroopsToXlm } from '@/lib/stellar'
 
 // ---------------------------------------------------------------------------
 // Auth helper
@@ -55,10 +56,36 @@ export async function getWalletData() {
       .orderBy(desc(transactions.createdAt))
       .limit(20),
   ])
+
+  const w = walletRows[0] ?? null
+
+  // Refresh the cached XLM balance from Horizon in the background whenever
+  // the user has a provisioned Stellar account. We update the DB row but don't
+  // block the response on it — the next load will show the freshest value.
+  if (w?.stellarPublicKey) {
+    getXlmBalanceStroops(w.stellarPublicKey)
+      .then((stroops) => {
+        if (stroops !== w.xlmBalanceStroops) {
+          db.update(wallet)
+            .set({ xlmBalanceStroops: stroops, updatedAt: new Date() })
+            .where(eq(wallet.id, w.id))
+            .catch(() => {/* non-critical cache refresh — ignore errors */})
+        }
+      })
+      .catch(() => {/* Horizon unavailable — use cached value */})
+  }
+
   return {
-    wallet: walletRows[0] ?? null,
+    wallet: w,
     goals,
     activity,
+    stellar: w
+      ? {
+          publicKey: w.stellarPublicKey ?? null,
+          xlmBalanceStroops: w.xlmBalanceStroops ?? 0n,
+          xlmFormatted: stroopsToXlm(w.xlmBalanceStroops ?? 0n),
+        }
+      : { publicKey: null, xlmBalanceStroops: 0n, xlmFormatted: '0' },
   }
 }
 

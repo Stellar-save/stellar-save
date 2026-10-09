@@ -24,5 +24,24 @@ declare namespace NodeJS {
 
     // App
     NEXT_PUBLIC_APP_URL: string
+
+    // Stellar network
+    /**
+     * 'testnet' (default) or 'mainnet'.
+     * Controls which Horizon URL and network passphrase are used.
+     */
+    STELLAR_NETWORK?: 'testnet' | 'mainnet'
+    /** Client-safe copy of STELLAR_NETWORK — used to build Stellar Expert links in the UI. */
+    NEXT_PUBLIC_STELLAR_NETWORK?: 'testnet' | 'mainnet'
+    /** Override the Horizon base URL (e.g. a private instance). Optional. */
+    STELLAR_HORIZON_URL?: string
+    /** Override the network passphrase. Optional — derived from STELLAR_NETWORK if absent. */
+    STELLAR_NETWORK_PASSPHRASE?: string
+    /**
+     * Secret key (S...) of the platform's funded Stellar account.
+     * Used server-side to create user accounts on mainnet (CreateAccount operation).
+     * On testnet, Friendbot is used instead and this variable is optional.
+     */
+    STELLAR_PLATFORM_SECRET?: string
   }
 }

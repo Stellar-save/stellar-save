@@ -1,4 +1,4 @@
-import { boolean, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { bigint, boolean, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -54,6 +54,15 @@ export const wallet = pgTable('wallet', {
   stripeConnectAccountId: text('stripeConnectAccountId'),
   /** Whether Stripe Connect onboarding is fully complete (charges_enabled). */
   stripeConnectOnboarded: boolean('stripeConnectOnboarded').notNull().default(false),
+  // -------------------------------------------------------------------------
+  // Stellar network integration
+  // -------------------------------------------------------------------------
+  /** Stellar public key (G...) for this user's on-chain account. Null until provisioned. */
+  stellarPublicKey: text('stellarPublicKey'),
+  /** AES-256-GCM encrypted Stellar secret key ("iv_b64:ciphertext_b64"). Never returned to client. */
+  stellarSecretKeyEnc: text('stellarSecretKeyEnc'),
+  /** Cached XLM balance in stroops (1 XLM = 10,000,000 stroops) — refreshed on dashboard load. */
+  xlmBalanceStroops: bigint('xlmBalanceStroops', { mode: 'bigint' }).notNull().default(0n),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
   updatedAt: timestamp('updatedAt').notNull().defaultNow(),
 })
@@ -81,5 +90,7 @@ export const transactions = pgTable('transaction', {
   stripePaymentIntentId: text('stripePaymentIntentId'),
   /** Related savings goal ID, if applicable. */
   goalId: text('goalId'),
+  /** Stellar transaction hash — set for XLM send/receive operations. */
+  stellarTxHash: text('stellarTxHash'),
   createdAt: timestamp('createdAt').notNull().defaultNow(),
 })

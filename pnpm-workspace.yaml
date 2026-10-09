@@ -1,4 +1,7 @@
 allowBuilds:
+  msw: set this to true or false
+
+onlyBuiltDependencies:
   - msw
   - esbuild
   - "@img/sharp-win32-x64"
